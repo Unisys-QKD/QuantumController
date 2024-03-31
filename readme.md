@@ -1,6 +1,5 @@
-# Project Name
+# QuantumController
 
-Brief project description goes here.
 
 ## Table of Contents
 1. [Installations](#installations)
@@ -61,7 +60,7 @@ ryu-manager
 
 
 
-## Technologies Used
+## tech-stack
 
 ### Ryu:
 - Component-based software-defined networking (SDN) framework written in Python.
