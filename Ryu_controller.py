@@ -1,31 +1,56 @@
-from ryu.base import app_manager
-from ryu.controller import ofp_event
-from ryu.controller.handler import CONFIG_DISPATCHER, MAIN_DISPATCHER
-from ryu.controller.handler import set_ev_cls
-from ryu.ofproto import ofproto_v1_3
+from qunetsim import Qubit, Network
+import networkx as nx
+import random
 
-class CustomRyuApp(app_manager.RyuApp):
-    def __init__(self, *args, **kwargs):
-        super(CustomRyuApp, self).__init__(*args, **kwargs)
+def bell_measurement(sender, receiver):
+    q1, q2 = Qubit.entangled_pair(sender)
+    sender.send_teleport(q1, receiver)
+    return q2
 
-    @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
-    def switch_features_handler(self, ev):
-        datapath = ev.msg.datapath
-        ofproto = datapath.ofproto
-        parser = datapath.ofproto_parser
+def djikstra_routing(network, source, destination):
+    # Use Dijkstra's algorithm to find the shortest path from source to destination
+    shortest_path = nx.shortest_path(network.topology, source, destination)
+    return shortest_path
 
-        # Install table-miss flow entry
-        match = parser.OFPMatch()
-        actions = [parser.OFPActionOutput(ofproto.OFPP_CONTROLLER,
-                                          ofproto.OFPCML_NO_BUFFER)]
-        self.add_flow(datapath, 0, match, actions)
+def quantum_routing(network, source, destination, qubit):
+    # Find shortest path using Dijkstra's algorithm
+    shortest_path = djikstra_routing(network, source, destination)
 
-    def add_flow(self, datapath, priority, match, actions):
-        ofproto = datapath.ofproto
-        parser = datapath.ofproto_parser
+    # Route qubit along the shortest path
+    current_node = source
+    for i in range(len(shortest_path) - 1):
+        next_node = shortest_path[i + 1]
+        qubit = bell_measurement(current_node, next_node)
+        current_node = next_node
+    
+    return qubit
 
-        inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS,
-                                             actions)]
-        mod = parser.OFPFlowMod(datapath=datapath, priority=priority,
-                                match=match, instructions=inst)
-        datapath.send_msg(mod)
+# Initialize the quantum network
+network = Network.get_instance()
+network.start()
+
+# Add nodes to the network
+network.add_node('Node1')
+network.add_node('Node2')
+network.add_node('Node3')
+network.add_node('Node4')
+
+# Add links to the network
+network.add_link('Node1', 'Node2')
+network.add_link('Node1', 'Node3')
+network.add_link('Node2', 'Node4')
+network.add_link('Node3', 'Node4')
+
+# Define source and destination nodes
+source_node = 'Node1'
+destination_node = 'Node4'
+
+# Create a qubit at the source node
+qubit = Qubit(network.get_node(source_node))
+
+# Perform quantum routing
+routed_qubit = quantum_routing(network, source_node, destination_node, qubit)
+print(f"Qubit routed from {source_node} to {destination_node}")
+
+# Stop the network simulation
+network.stop()
