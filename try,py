@@ -1,0 +1,98 @@
+import simpy
+import numpy as np
+from qunetsim import Simulator, Circuit, Qubit, DepolarizingNoiseChannel
+
+# QKD Functions (Replace with your specific protocol implementation)
+def generate_key(source, dest):
+  # Simulate key generation and transmission through QuNetSim
+  # ...
+  return key
+
+def measure_key(key, bits):
+  # Simulate bit-error rate and key reconciliation
+  # ...
+  return secure_key
+
+# Classical Network Node
+class Node:
+  def __init__(self, sim, id, neighbors):
+    self.sim = sim
+    self.id = id
+    self.neighbors = neighbors
+    self.routing_table = {}  # Stores routing information for other nodes
+    self.key_buffer = {}  # Stores secure keys for neighboring nodes
+
+  def run(self):
+    while True:
+      # Receive key from QKD simulation
+      key = yield self.sim.wait(generate_key(self.id, neighbor))
+      self.key_buffer[neighbor] = measure_key(key, len(self.routing_table[neighbor]))
+
+      # Simulate classical routing using secure key
+      packet = yield self.sim.get(self.sim.packet_queue)  # External packet queue
+      next_hop = self.get_next_hop(packet.dest, packet.data)
+      if next_hop:
+        yield self.sim.send(self.neighbors[next_hop], packet)
+      else:
+        print(f"Node {self.id}: No route to {packet.dest}")
+
+      yield self.sim.timeout(1)  # Adjust delay as needed
+
+  def get_next_hop(self, dest, data):
+    # Implement your chosen routing algorithm (e.g., Dijkstra's)
+    # Consider security aspects (e.g., using secure keys for verification)
+    # Use data argument for potential application-aware routing
+    if dest in self.routing_table:
+      return self.routing_table[dest]["next_hop"]
+    return None
+
+# SDN Controller (Optional - Replace with your SDN controller logic)
+class SDNController:
+  def __init__(self, sim, nodes):
+    self.sim = sim
+    self.nodes = nodes
+    self.topology = self.discover_topology()  # Discover network topology
+
+  def discover_topology(self):
+    # Implement logic to discover network topology (e.g., using LLDP)
+    # ...
+    return topology
+
+  def update_routing(self):
+    # Implement logic to calculate routing paths based on topology
+    # ...
+    for node in self.nodes:
+      node.routing_table = self.get_routing_table(node.id)
+
+  def get_routing_table(self, node_id):
+    # Implement logic to generate routing table entries for a specific node
+    # ...
+    return routing_table
+
+def run_simulation(num_nodes, sdn_enabled=False):
+  sim = simpy.Environment()
+  sim.packet_queue = simpy.Store(sim)  # Shared packet queue
+
+  # Create nodes and connect them (replace with your network topology)
+  nodes = []
+  for i in range(num_nodes):
+    neighbors = [j for j in range(num_nodes) if i != j]  # All other nodes as neighbors (adjust as needed)
+    nodes.append(Node(sim, i+1, neighbors))
+
+  # SDN Controller (if enabled)
+  if sdn_enabled:
+    controller = SDNController(sim, nodes)
+    controller.update_routing()  # Update routing tables before simulation
+
+  # Start node simulations
+  for node in nodes:
+    sim.process(node.run())
+
+  # Packet generation (example)
+  def generate_packets(sim, num_packets, interval):
+    for i in range(num_packets):
+      src = np.random.randint(1, num_nodes+1)
+      dest = np.random.randint(1, num_nodes+1)
+      data = f"Packet {i+1} from {src} to {dest}"
+      packet = sim.Packet(src, dest, data)
+      yield sim

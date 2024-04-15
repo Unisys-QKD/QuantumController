@@ -1,54 +1,54 @@
-from qunetsim import Qubit, Network
-import networkx as nx
-import random
+from qunetsim.components import Host, Network
+from qunetsim.objects import Message, Qubit, Logger
+from qunetsim.backends import EQSNBackend
+Logger.DISABLED = True
 
-def bell_measurement(sender, receiver):
-    q1, q2 = Qubit.entangled_pair(sender)
-    sender.send_teleport(q1, receiver)
-    return q2
-
-def djikstra_routing(network, source, destination):
-    
-    shortest_path = nx.shortest_path(network.topology, source, destination)
-    return shortest_path
-
-def quantum_routing(network, source, destination, qubit):
-    
-    shortest_path = djikstra_routing(network, source, destination)
-
-    
-    current_node = source
-    for i in range(len(shortest_path) - 1):
-        next_node = shortest_path[i + 1]
-        qubit = bell_measurement(current_node, next_node)
-        current_node = next_node
-    
-    return qubit
+backend = EQSNBackend()
 
 
-network = Network.get_instance()
-network.start()
+def protocol_1(host, receiver):
+    for i in range(5):
+        s = 'Hi {}.'.format(receiver)
+        print("{} sends: {}".format(host.host_id, s))
+        host.send_classical(receiver, s, await_ack=True)
+    for i in range(5):
+        q = Qubit(host)
+        q.X()
+        print("{} sends qubit in the |1> state".format(host.host_id))
+        host.send_qubit(receiver, q, await_ack=True)
 
 
-network.add_node('Node1')
-network.add_node('Node2')
-network.add_node('Node3')
-network.add_node('Node4')
+def protocol_2(host, sender):
+    for i in range(5):
+        sender_message = host.get_classical(sender, wait=5, seq_num=i)
+        print("{} Received classical: {}".format(host.host_id, sender_message.content))
+    for i in range(5):
+        q = host.get_qubit(sender, wait=10)
+        m = q.measure()
+        print("{} measured: {}".format(host.host_id, m))
 
 
-network.add_link('Node1', 'Node2')
-network.add_link('Node1', 'Node3')
-network.add_link('Node2', 'Node4')
-network.add_link('Node3', 'Node4')
+def main():
+    network = Network.get_instance()
+    nodes = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J']
+    network.generate_topology(nodes, 'tree')
+    network.start(nodes)
+
+    host_a = network.get_host('A')
+    host_b = network.get_host('B')
+    host_c = network.get_host('C')
+    host_d = network.get_host('D')
+    host_e = network.get_host('E')
+    host_f = network.get_host('F')
+    host_g = network.get_host('G')
+    host_h = network.get_host('H')
+    host_i = network.get_host('I')
+    host_j = network.get_host('J')
+
+    t1 = host_a.run_protocol(protocol_1, (host_j.host_id,))
+    t2 = host_j.run_protocol(protocol_2, (host_a.host_id,), blocking=True)
+    network.stop(True)
 
 
-source_node = 'Node1'
-destination_node = 'Node4'
-
-qubit = Qubit(network.get_node(source_node))
-
-
-routed_qubit = quantum_routing(network, source_node, destination_node, qubit)
-print(f"Qubit routed from {source_node} to {destination_node}")
-
-network.stop()
+if __name__ == '__main__':
+    main()
